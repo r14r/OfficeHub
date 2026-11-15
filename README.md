@@ -1,1 +1,88 @@
-# Office Hub
+# OfficeHub
+
+A local-first freelancer office starter: Nuxt 4 + Nuxt UI dashboard, FastAPI + PostgreSQL records, and Ollama + Open WebUI for self-hosted AI.
+
+## Quick start
+
+1. Install Docker Engine and Docker Compose v2.
+2. Install [just](https://github.com/casey/just) and Python 3 (for local secret generation).
+3. Run `just init` to create `.env` with independent random credentials; review the generated values.
+4. Run `just up` (equivalent to validated `docker compose up --build -d`).
+5. Visit **http://localhost:3000** for OfficeHub and **http://localhost:3001** for Open WebUI.
+6. Register the first Open WebUI admin account locally. After registration, set `ENABLE_SIGNUP: "false"` under `openwebui.environment` and run `docker compose up -d --force-recreate openwebui` to prevent additional sign-ups. Do not expose the initial registration endpoint publicly.
+
+Model download runs in the one-off `ollama-init` container (default `llama3.2:1b`); first boot can take a while. Check progress with `docker compose logs -f ollama-init`. To load another model, change `OLLAMA_MODEL` in `.env` and run `docker compose up --force-recreate ollama-init`.
+
+## Services
+
+| Compose service | Purpose | Host access |
+| --- | --- | --- |
+| `frontend` | Nuxt UI dashboard and same-origin API proxy | 127.0.0.1:3000 |
+| `api` | FastAPI CRUD + dashboard aggregates | Docker network only |
+| `postgres` | Persistent clients, projects, tasks and invoices | Docker network only |
+| `ollama` | Local LLM inference | Docker network only |
+| `ollama-init` | One-shot model pull | No HTTP port |
+| `openwebui` | AI chat UI (own login and storage) | 127.0.0.1:3001 |
+
+Compose creates persistent named volumes for database, Ollama models and Open WebUI. Ports are bound to loopback for local usage. Access from remote machines requires TLS, authentication and a properly configured reverse proxy; do not simply publish these ports.
+
+### Functional starter features
+
+- Dashboard counts, recent tasks, unpaid invoice totals and Ollama connectivity/model status.
+- Client, project, task and invoice list/create/delete backed by PostgreSQL.
+- A same-origin Nuxt server proxy to FastAPI; the backend and database are not directly published.
+- Optional project/client relationships by numeric ID. Invoices are **records only**, not legally compliant invoice documents or a payment processor.
+- AI chat via Open WebUI, independent from the application records.
+
+### Project layout
+
+```text
+compose.yaml
+.env.example
+backend/
+  Dockerfile
+  requirements.txt
+  app/main.py
+frontend/
+  Dockerfile
+  package.json
+  nuxt.config.ts
+  app/
+    app.vue
+    components/OfficeShell.vue
+    pages/index.vue
+    pages/[section].vue
+    assets/css/main.css
+  server/api/[...path].ts
+```
+
+## Commands (justfile)
+
+Run `just` or `just --list` to discover the recipes. Common commands: `just init`, `just check`, `just up`, `just start`, `just stop`, `just down`, `just restart`, `just build`, `just pull`, `just upgrade`, `just ps`, `just logs api`, `just smoke`, `just db-shell`, `just db-backup`, `just db-restore backups/<name>.sql.gz`, `just model-pull`, `just models`, `just model llama3.2:3b`, and `just chat`.
+
+Database backups are written to `backups/` (ignored by Git); restore only to an empty or properly prepared database to avoid conflicts. `just down` preserves volumes; **do not** use `docker compose down -v` unless you intend to delete stored data.
+
+### update-cli support
+
+The root-level `update-cli.yaml` is a [r14r/update-cli](https://github.com/r14r/update-cli) schema-v2 manifest, **not** a GitHub Actions workflow. It declares `setup` (generate environment if absent, build/start stack), `ci` (validate Compose) and `run` (`just start`). Configure the repository/branch in update-cli's own project configuration, for example:
+
+```bash
+update-cli init officehub --mode pull --repository https://github.com/r14r/OfficeHub.git
+update-cli config --set source.ref=main
+update-cli setup
+update-cli run
+```
+
+`just update-check`, `just update-plan`, `just update`, `just update-doctor` and `just update-status` wrap installed update-cli commands. **Changing to `main` only works after the feature branch has been merged.** If deploying the feature branch before merge, set `source.ref=feature/officehub-compose-starter` instead. Do not commit update-cli's local state/config or application backup directories.
+
+## Development
+
+For API work: `cd backend && pip install -r requirements.txt && uvicorn app.main:app --reload`. Without `DATABASE_URL`, the API uses a local SQLite file for development. For frontend work: `cd frontend && npm install && npm run dev`. Set `NUXT_API_INTERNAL_URL=http://localhost:8000` for local frontend development. Keep Docker's database and AI services running if needed.
+
+API endpoints: `GET /health`, `GET /api/dashboard`, and `GET/POST /api/{clients|projects|tasks|invoices}`, `DELETE /api/{resource}/{id}`. FastAPI's autogenerated docs are available inside the Docker network at `http://api:8000/docs`.
+
+## Production hardening checklist
+
+This repository is a **starter**, not a deployed production office system. **There is no application user authentication or authorization**. Do not expose it publicly or store sensitive client data until this is addressed. Add a user identity provider, per-user/tenant authorization checks, TLS, database migrations (Alembic), schema constraints and edit workflows, backups and restore drills, monitoring, invoice numbering/tax requirements, audit logs, and tests. Pin images/dependency versions and review container updates. The example secrets must be changed before launch. Existing Postgres volumes are not reconfigured automatically when changing database credentials.
+
+**Backend naming:** This uses **FastAPI** (Python API framework), not `fastai` (machine-learning library), because the office dashboard needs a web API. fastai can be introduced as an optional analytics/ML worker later.

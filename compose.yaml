@@ -1,0 +1,93 @@
+name: officehub
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-officehub}
+      POSTGRES_USER: ${POSTGRES_USER:-officehub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-officehub} -d ${POSTGRES_DB:-officehub}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    networks: [private]
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-officehub}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-officehub}
+      OLLAMA_URL: http://ollama:11434
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [private]
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      NUXT_API_INTERNAL_URL: http://api:8000
+      HOST: 0.0.0.0
+      PORT: 3000
+    ports:
+      - "127.0.0.1:${OFFICEHUB_PORT:-3000}:3000"
+    depends_on:
+      api: {condition: service_healthy}
+    networks: [private]
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks: [private]
+    # CPU by default. Configure GPU access separately for your Docker host.
+
+  ollama-init:
+    image: curlimages/curl:8.14.1
+    restart: "no"
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        until curl -fsS http://ollama:11434/api/tags >/dev/null; do sleep 3; done
+        echo "Pulling ${OLLAMA_MODEL} into persistent Ollama storage..."
+        curl --fail --show-error --silent --max-time 3600 http://ollama:11434/api/pull \
+          -H 'Content-Type: application/json' \
+          -d "{\"name\":\"${OLLAMA_MODEL}\",\"stream\":false}"
+    networks: [private]
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Set WEBUI_SECRET_KEY in .env}
+      ENABLE_SIGNUP: "true"
+    ports:
+      - "127.0.0.1:${OPEN_WEBUI_PORT:-3001}:8080"
+    volumes:
+      - openwebui_data:/app/backend/data
+    networks: [private]
+
+networks:
+  private:
+
+volumes:
+  postgres_data:
+  ollama_data:
+  openwebui_data:

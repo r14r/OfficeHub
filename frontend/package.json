@@ -1,0 +1,21 @@
+{
+  "name": "officehub-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev --host 0.0.0.0",
+    "build": "nuxt build",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "nuxt": "^4.0.0",
+    "@nuxt/ui": "^4.0.0",
+    "tailwindcss": "^4.0.0",
+    "lucide-vue-next": "^0.460.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vue-tsc": "^3.1.0"
+  }
+}
