@@ -125,3 +125,9 @@ There is **exactly one Ollama server**, `ollama`, with its persisted `ollama_dat
 Both jobs wait for the same Ollama service and pull their configured model into the same store. Pulls are idempotent; if both request the same model it is shared, not duplicated. Run `just docker-model-pull` for Open WebUI or `just docker-n8n-model-pull` for n8n. In n8n, set the Ollama node credential's base URL to `http://ollama:11434`; merely downloading a model does not create n8n workflows or credentials.
 
 The other optional office applications have no demonstrated Ollama dependency, so no artificial initializer jobs have been added to them.
+
+## Container logs and Docker volumes
+
+Application stdout/stderr is collected by Docker's container logging system; inspect it using `docker compose logs` or `just docker-app-logs <profile>`. It does **not** require application-specific log bind mounts. A scan of both Compose manifests found only one filesystem log mount, Stirling PDF's `/logs`. That directory is now backed by the named Docker volume `officehub_stirlingpdf_logs` rather than `../data/officehub-stirlingpdf-frontend/logs`, avoiding cloud-synced host filesystem `chown` failures.
+
+The other application data bind mounts are unchanged. Existing files in the old Stirling PDF log folder are **not automatically migrated**; copy them separately if needed. Docker-managed volumes persist across `docker compose down`, but are removed by `docker compose down -v` or an explicit volume deletion.
