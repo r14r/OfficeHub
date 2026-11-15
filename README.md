@@ -75,6 +75,20 @@ update-cli run
 
 `just update-check`, `just update-plan`, `just update`, `just update-doctor` and `just update-status` wrap installed update-cli commands. **Changing to `main` only works after the feature branch has been merged.** If deploying the feature branch before merge, set `source.ref=feature/officehub-compose-starter` instead. Do not commit update-cli's local state/config or application backup directories.
 
+## Optional application services
+
+See [docs/apps.md](docs/apps.md) for 31 optional component definitions (Paperless-ngx, Gotenberg, n8n, DocuSeal, Kimai, Authentik, Stirling PDF, Vikunja, Twenty, Actual Budget, Qdrant, Akaunting, Invoice Ninja, and Automatisch) and their separate PostgreSQL/MySQL/Redis dependencies. Each app is activated through its own Compose profile, uses `officehub-<repo>-<service>` names, and writes persistent data to `../data/officehub-<repo>-<service>/`.
+
+```bash
+just apps-init
+just docker-app-check
+just docker-app-up documents
+just docker-app-up automation
+just docker-app-down documents
+```
+
+The extra applications are **not** automatically enabled with `just bootstrap`; they are independent installations. Dify is intentionally delegated to its official upstream Compose distribution because its generated multi-service dependencies are significantly more involved. The existing core services retain their original Docker volumes to prevent accidental data loss; migrate those volumes explicitly if moving to bind mounts.
+
 ## Development
 
 For API work: `cd backend && pip install -r requirements.txt && uvicorn app.main:app --reload`. Without `DATABASE_URL`, the API uses a local SQLite file for development. For frontend work: `cd frontend && npm install && npm run dev`. Set `NUXT_API_INTERNAL_URL=http://localhost:8000` for local frontend development. Keep Docker's database and AI services running if needed.

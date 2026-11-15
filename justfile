@@ -146,3 +146,23 @@ update-status:
 # Run update-cli setup tasks from update-cli.yaml.
 update-setup:
     update-cli setup
+
+# Generate independent secrets for the optional application profiles.
+apps-init: init
+    python3 scripts/init-apps.py
+
+# Start optional app profile (and its dependencies); e.g. just docker-app-up documents.
+docker-app-up profile: apps-init
+    docker compose -f compose.yaml -f compose.apps.yaml --profile {{quote(profile)}} up -d
+
+# Stop only services from the selected profile, preserving all data and core services.
+docker-app-down profile:
+    @services="$(docker compose -f compose.yaml -f compose.apps.yaml --profile {{quote(profile)}} config --services | grep '^officehub-' || true)"; if [ -z "$services" ]; then echo "No optional services found"; exit 1; fi; docker compose -f compose.yaml -f compose.apps.yaml stop $services
+
+# Follow optional application logs; e.g. just docker-app-logs automation.
+docker-app-logs profile:
+    docker compose -f compose.yaml -f compose.apps.yaml --profile {{quote(profile)}} logs -f --tail=100
+
+# Validate all optional app definitions and their secret references.
+docker-app-check: apps-init
+    docker compose -f compose.yaml -f compose.apps.yaml config --quiet
