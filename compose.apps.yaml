@@ -236,9 +236,9 @@ services:
       SECURITY_ENABLELOGIN: "true"
     ports: ["127.0.0.1:${STIRLING_PORT:-8088}:8080"]
     volumes:
-      - "../data/officehub-stirlingpdf-frontend/config:/configs"
+      - "officehub_stirlingpdf_config:/configs"
       - "officehub_stirlingpdf_logs:/logs"
-      - "../data/officehub-stirlingpdf-frontend/tessdata:/usr/share/tessdata"
+      - "officehub_stirlingpdf_tessdata:/usr/share/tessdata"
     networks: [private]
 
   officehub-vikunja-database:
@@ -464,6 +464,8 @@ services:
     volumes: ["../data/officehub-automatisch-worker:/automatisch/storage"]
     networks: [private]
 
-# Docker-managed log storage (no host-directory chown on cloud-synced paths).
+# Docker-managed Stirling PDF storage (avoids chown failures on cloud-synced paths).
 volumes:
+  officehub_stirlingpdf_config:
   officehub_stirlingpdf_logs:
+  officehub_stirlingpdf_tessdata:
