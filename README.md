@@ -153,3 +153,7 @@ just status
 ```
 
 This command **does not start or recreate containers**. The status is a snapshot: historical build events like `Built` and `Recreated` cannot be recovered from `docker compose ps`. It reads Docker Compose JSON output and may return a nonzero status when a container is failed or unhealthy. Use `just docker-app-logs <profile>` for diagnostic logs.
+
+## Docker image builds
+
+Use `just docker-build` to build the API and frontend images with `docker compose build --no-cache api frontend`. For faster incremental builds with the regular Docker build cache, use `just docker-build-with-cache`. Both commands build images only; they do not start or recreate containers.
