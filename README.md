@@ -6,8 +6,8 @@ A local-first freelancer office starter: Nuxt 4 + Nuxt UI dashboard, FastAPI + P
 
 1. Install Docker Engine and Docker Compose v2.
 2. Install [just](https://github.com/casey/just) and Python 3 (for local secret generation).
-3. Run `just init` to create `.env` with independent random credentials; review the generated values.
-4. Run `just up` (equivalent to validated `docker compose up --build -d`).
+3. Run `just bootstrap` to generate `.env` with independent random credentials, validate Docker Compose and launch the stack.
+4. Run `just open` to launch the frontend dashboard in your default browser (uses `OFFICEHUB_PORT` from `.env`).
 5. Visit **http://localhost:3000** for OfficeHub and **http://localhost:3001** for Open WebUI.
 6. Register the first Open WebUI admin account locally. After registration, set `ENABLE_SIGNUP: "false"` under `openwebui.environment` and run `docker compose up -d --force-recreate openwebui` to prevent additional sign-ups. Do not expose the initial registration endpoint publicly.
 
@@ -58,13 +58,13 @@ frontend/
 
 ## Commands (justfile)
 
-Run `just` or `just --list` to discover the recipes. Common commands: `just init`, `just check`, `just up`, `just start`, `just stop`, `just down`, `just restart`, `just build`, `just pull`, `just upgrade`, `just ps`, `just logs api`, `just smoke`, `just db-shell`, `just db-backup`, `just db-restore backups/<name>.sql.gz`, `just model-pull`, `just models`, `just model llama3.2:3b`, and `just chat`.
+Run `just` or `just --list` to discover recipes. Start with `just bootstrap` (first-time setup), `just open` (browser), and `just init` (generate missing `.env`). All Docker-backed recipes have the `docker-` prefix: `just docker-check`, `just docker-up`, `just docker-start`, `just docker-stop`, `just docker-down`, `just docker-restart`, `just docker-build`, `just docker-pull`, `just docker-upgrade`, `just docker-ps`, `just docker-logs api`, `just docker-smoke`, `just docker-db-shell`, `just docker-db-backup`, `just docker-db-restore backups/<name>.sql.gz`, `just docker-model-pull`, `just docker-models`, `just docker-model llama3.2:3b`, and `just docker-chat`.
 
-Database backups are written to `backups/` (ignored by Git); restore only to an empty or properly prepared database to avoid conflicts. `just down` preserves volumes; **do not** use `docker compose down -v` unless you intend to delete stored data.
+Database backups are written to `backups/` (ignored by Git); restore only to an empty or properly prepared database to avoid conflicts. `just docker-down` preserves volumes; **do not** use `docker compose down -v` unless you intend to delete stored data.
 
 ### update-cli support
 
-The root-level `update-cli.yaml` is a [r14r/update-cli](https://github.com/r14r/update-cli) schema-v2 manifest, **not** a GitHub Actions workflow. It declares `setup` (generate environment if absent, build/start stack), `ci` (validate Compose) and `run` (`just start`). Configure the repository/branch in update-cli's own project configuration, for example:
+The root-level `update-cli.yaml` is a [r14r/update-cli](https://github.com/r14r/update-cli) schema-v2 manifest, **not** a GitHub Actions workflow. It declares `setup` (generate environment if absent, build/start stack), `ci` (validate Compose) and `run` (`just docker-start`). Configure the repository/branch in update-cli's own project configuration, for example:
 
 ```bash
 update-cli init officehub --mode pull --repository https://github.com/r14r/OfficeHub.git
