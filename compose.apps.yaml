@@ -1,0 +1,443 @@
+# Optional self-hosted applications for OfficeHub.
+# Enable selectively: docker compose -f compose.yaml -f compose.apps.yaml --profile documents up -d
+# All persisted paths are relative to the OfficeHub repo: ../data/<service>/
+# No ports other than localhost are exposed.
+services:
+  officehub-gotenberg-api:
+    image: gotenberg/gotenberg:8
+    profiles: [documents]
+    restart: unless-stopped
+    command: ["gotenberg", "--chromium-disable-javascript=true", "--chromium-allow-list=^file:///tmp/.*"]
+    networks: [private]
+
+  officehub-paperless-database:
+    image: postgres:17-alpine
+    profiles: [documents]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${PAPERLESS_DB_PASSWORD:?Run just apps-init}
+    volumes: ["../data/officehub-paperless-database:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperless -d paperless"]
+      interval: 10s
+      retries: 10
+    networks: [private]
+  officehub-paperless-broker:
+    image: valkey/valkey:9-alpine
+    profiles: [documents]
+    restart: unless-stopped
+    volumes: ["../data/officehub-paperless-broker:/data"]
+    networks: [private]
+  officehub-paperless-tika:
+    image: apache/tika:3.3.1.0
+    profiles: [documents]
+    restart: unless-stopped
+    networks: [private]
+  officehub-paperless-frontend:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    profiles: [documents]
+    restart: unless-stopped
+    depends_on:
+      officehub-paperless-database: {condition: service_healthy}
+      officehub-paperless-broker: {condition: service_started}
+      officehub-paperless-tika: {condition: service_started}
+      officehub-gotenberg-api: {condition: service_started}
+    environment:
+      PAPERLESS_REDIS: redis://officehub-paperless-broker:6379
+      PAPERLESS_DBHOST: officehub-paperless-database
+      PAPERLESS_DBENGINE: postgresql
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPASS: ${PAPERLESS_DB_PASSWORD:?Run just apps-init}
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:?Run just apps-init}
+      PAPERLESS_URL: http://localhost:${PAPERLESS_PORT:-8010}
+      PAPERLESS_TIKA_ENABLED: "1"
+      PAPERLESS_TIKA_ENDPOINT: http://officehub-paperless-tika:9998
+      PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://officehub-gotenberg-api:3000
+      PAPERLESS_OCR_LANGUAGE: deu+eng
+    ports: ["127.0.0.1:${PAPERLESS_PORT:-8010}:8000"]
+    volumes:
+      - "../data/officehub-paperless-frontend/data:/usr/src/paperless/data"
+      - "../data/officehub-paperless-frontend/media:/usr/src/paperless/media"
+      - "../data/officehub-paperless-frontend/consume:/usr/src/paperless/consume"
+      - "../data/officehub-paperless-frontend/export:/usr/src/paperless/export"
+    networks: [private]
+
+  officehub-n8n-database:
+    image: postgres:17-alpine
+    profiles: [automation]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: n8n
+      POSTGRES_USER: n8n
+      POSTGRES_PASSWORD: ${N8N_DB_PASSWORD:?Run just apps-init}
+    volumes: ["../data/officehub-n8n-database:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n -d n8n"]
+      interval: 10s
+      retries: 10
+    networks: [private]
+  officehub-n8n-frontend:
+    image: docker.n8n.io/n8nio/n8n:latest
+    profiles: [automation]
+    restart: unless-stopped
+    depends_on:
+      officehub-n8n-database: {condition: service_healthy}
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: officehub-n8n-database
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD:?Run just apps-init}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?Run just apps-init}
+      N8N_HOST: localhost
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://localhost:${N8N_PORT:-5678}/
+      GENERIC_TIMEZONE: Europe/Berlin
+    ports: ["127.0.0.1:${N8N_PORT:-5678}:5678"]
+    volumes: ["../data/officehub-n8n-frontend:/home/node/.n8n"]
+    networks: [private]
+
+  officehub-docuseal-database:
+    image: postgres:17-alpine
+    profiles: [signing]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: docuseal
+      POSTGRES_USER: docuseal
+      POSTGRES_PASSWORD: ${DOCUSEAL_DB_PASSWORD:?Run just apps-init}
+    volumes: ["../data/officehub-docuseal-database:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docuseal -d docuseal"]
+      interval: 10s
+      retries: 10
+    networks: [private]
+  officehub-docuseal-frontend:
+    image: docuseal/docuseal:latest
+    profiles: [signing]
+    restart: unless-stopped
+    depends_on:
+      officehub-docuseal-database: {condition: service_healthy}
+    environment:
+      DATABASE_URL: postgresql://docuseal:${DOCUSEAL_DB_PASSWORD}@officehub-docuseal-database:5432/docuseal
+    ports: ["127.0.0.1:${DOCUSEAL_PORT:-3002}:3000"]
+    volumes: ["../data/officehub-docuseal-frontend:/data/docuseal"]
+    networks: [private]
+
+  officehub-kimai-database:
+    image: mysql:8.4
+    profiles: [time]
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: kimai
+      MYSQL_USER: kimai
+      MYSQL_PASSWORD: ${KIMAI_DB_PASSWORD:?Run just apps-init}
+      MYSQL_ROOT_PASSWORD: ${KIMAI_ROOT_PASSWORD:?Run just apps-init}
+    command: --default-storage-engine=innodb
+    volumes: ["../data/officehub-kimai-database:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      retries: 15
+    networks: [private]
+  officehub-kimai-frontend:
+    image: kimai/kimai2:stable
+    profiles: [time]
+    restart: unless-stopped
+    depends_on:
+      officehub-kimai-database: {condition: service_healthy}
+    environment:
+      DATABASE_URL: mysql://kimai:${KIMAI_DB_PASSWORD}@officehub-kimai-database/kimai?charset=utf8mb4&serverVersion=8.4.0
+      APP_SECRET: ${KIMAI_APP_SECRET:?Run just apps-init}
+      ADMINMAIL: ${KIMAI_ADMIN_EMAIL:-admin@example.invalid}
+      ADMINPASS: ${KIMAI_ADMIN_PASSWORD:?Run just apps-init}
+    ports: ["127.0.0.1:${KIMAI_PORT:-8001}:8001"]
+    volumes:
+      - "../data/officehub-kimai-frontend/data:/opt/kimai/var/data"
+      - "../data/officehub-kimai-frontend/plugins:/opt/kimai/var/plugins"
+    networks: [private]
+
+  officehub-authentik-database:
+    image: postgres:17-alpine
+    profiles: [security]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: authentik
+      POSTGRES_USER: authentik
+      POSTGRES_PASSWORD: ${AUTHENTIK_DB_PASSWORD:?Run just apps-init}
+    volumes: ["../data/officehub-authentik-database:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U authentik -d authentik"]
+      interval: 10s
+      retries: 10
+    networks: [private]
+  officehub-authentik-frontend:
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8}
+    command: server
+    profiles: [security]
+    restart: unless-stopped
+    depends_on:
+      officehub-authentik-database: {condition: service_healthy}
+    environment: &authentik-env
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?Run just apps-init}
+      AUTHENTIK_POSTGRESQL__HOST: officehub-authentik-database
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD:?Run just apps-init}
+      AUTHENTIK_POSTGRESQL__SSLMODE: disable
+    ports: ["127.0.0.1:${AUTHENTIK_PORT:-9000}:9000"]
+    volumes: ["../data/officehub-authentik-frontend/media:/media"]
+    networks: [private]
+  officehub-authentik-worker:
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8}
+    command: worker
+    profiles: [security]
+    restart: unless-stopped
+    depends_on:
+      officehub-authentik-database: {condition: service_healthy}
+    environment: *authentik-env
+    volumes:
+      - "../data/officehub-authentik-frontend/media:/media"
+      - "../data/officehub-authentik-worker/templates:/templates"
+    networks: [private]
+    # Intentionally does not mount /var/run/docker.sock.
+
+  officehub-stirlingpdf-frontend:
+    image: docker.stirlingpdf.com/stirlingtools/stirling-pdf:latest
+    profiles: [pdf]
+    restart: unless-stopped
+    environment:
+      DISABLE_ADDITIONAL_FEATURES: "true"
+      SECURITY_ENABLELOGIN: "true"
+    ports: ["127.0.0.1:${STIRLING_PORT:-8088}:8080"]
+    volumes:
+      - "../data/officehub-stirlingpdf-frontend/config:/configs"
+      - "../data/officehub-stirlingpdf-frontend/logs:/logs"
+      - "../data/officehub-stirlingpdf-frontend/tessdata:/usr/share/tessdata"
+    networks: [private]
+
+  officehub-vikunja-database:
+    image: postgres:17-alpine
+    profiles: [tasks]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vikunja
+      POSTGRES_USER: vikunja
+      POSTGRES_PASSWORD: ${VIKUNJA_DB_PASSWORD:?Run just apps-init}
+    volumes: ["../data/officehub-vikunja-database:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vikunja -d vikunja"]
+      interval: 10s
+      retries: 10
+    networks: [private]
+  officehub-vikunja-frontend:
+    image: vikunja/vikunja:latest
+    profiles: [tasks]
+    restart: unless-stopped
+    depends_on:
+      officehub-vikunja-database: {condition: service_healthy}
+    environment:
+      VIKUNJA_DATABASE_TYPE: postgres
+      VIKUNJA_DATABASE_HOST: officehub-vikunja-database
+      VIKUNJA_DATABASE_DATABASE: vikunja
+      VIKUNJA_DATABASE_USER: vikunja
+      VIKUNJA_DATABASE_PASSWORD: ${VIKUNJA_DB_PASSWORD:?Run just apps-init}
+      VIKUNJA_SERVICE_SECRET: ${VIKUNJA_SECRET:?Run just apps-init}
+      VIKUNJA_SERVICE_PUBLICURL: http://localhost:${VIKUNJA_PORT:-3456}/
+    ports: ["127.0.0.1:${VIKUNJA_PORT:-3456}:3456"]
+    volumes: ["../data/officehub-vikunja-frontend:/app/vikunja/files"]
+    networks: [private]
+
+  officehub-twenty-database:
+    image: postgres:16-alpine
+    profiles: [crm]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: twenty
+      POSTGRES_USER: twenty
+      POSTGRES_PASSWORD: ${TWENTY_DB_PASSWORD:?Run just apps-init}
+    volumes: ["../data/officehub-twenty-database:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U twenty -d twenty"]
+      interval: 10s
+      retries: 10
+    networks: [private]
+  officehub-twenty-redis:
+    image: redis:7-alpine
+    profiles: [crm]
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory-policy", "noeviction"]
+    volumes: ["../data/officehub-twenty-redis:/data"]
+    networks: [private]
+  officehub-twenty-frontend:
+    image: twentycrm/twenty:${TWENTY_TAG:-latest}
+    profiles: [crm]
+    restart: unless-stopped
+    depends_on:
+      officehub-twenty-database: {condition: service_healthy}
+      officehub-twenty-redis: {condition: service_started}
+    environment: &twenty-env
+      NODE_PORT: "3000"
+      PG_DATABASE_URL: postgres://twenty:${TWENTY_DB_PASSWORD}@officehub-twenty-database:5432/twenty
+      REDIS_URL: redis://officehub-twenty-redis:6379
+      SERVER_URL: http://localhost:${TWENTY_PORT:-3020}
+      APP_SECRET: ${TWENTY_APP_SECRET:?Run just apps-init}
+      ENCRYPTION_KEY: ${TWENTY_ENCRYPTION_KEY:?Run just apps-init}
+      STORAGE_TYPE: local
+    ports: ["127.0.0.1:${TWENTY_PORT:-3020}:3000"]
+    volumes: ["../data/officehub-twenty-frontend:/app/packages/twenty-server/.local-storage"]
+    networks: [private]
+  officehub-twenty-worker:
+    image: twentycrm/twenty:${TWENTY_TAG:-latest}
+    profiles: [crm]
+    restart: unless-stopped
+    command: ["yarn", "worker:prod"]
+    depends_on:
+      officehub-twenty-frontend: {condition: service_started}
+    environment:
+      <<: *twenty-env
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
+    volumes: ["../data/officehub-twenty-frontend:/app/packages/twenty-server/.local-storage"]
+    networks: [private]
+
+  officehub-actualbudget-frontend:
+    image: actualbudget/actual-server:latest
+    profiles: [budget]
+    restart: unless-stopped
+    ports: ["127.0.0.1:${ACTUAL_PORT:-5006}:5006"]
+    volumes: ["../data/officehub-actualbudget-frontend:/data"]
+    networks: [private]
+
+  officehub-qdrant-database:
+    image: qdrant/qdrant:latest
+    profiles: [vector]
+    restart: unless-stopped
+    volumes: ["../data/officehub-qdrant-database:/qdrant/storage"]
+    networks: [private]
+
+  officehub-akaunting-database:
+    image: mariadb:11.4
+    profiles: [accounting]
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: akaunting
+      MARIADB_USER: akaunting
+      MARIADB_PASSWORD: ${AKAUNTING_DB_PASSWORD:?Run just apps-init}
+      MARIADB_ROOT_PASSWORD: ${AKAUNTING_ROOT_PASSWORD:?Run just apps-init}
+    volumes: ["../data/officehub-akaunting-database:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized"]
+      interval: 10s
+      retries: 15
+    networks: [private]
+  officehub-akaunting-frontend:
+    image: akaunting/akaunting:latest
+    profiles: [accounting]
+    restart: unless-stopped
+    depends_on:
+      officehub-akaunting-database: {condition: service_healthy}
+    environment:
+      APP_URL: http://localhost:${AKAUNTING_PORT:-8040}
+      DB_HOST: officehub-akaunting-database
+      DB_PORT: "3306"
+      DB_DATABASE: akaunting
+      DB_USERNAME: akaunting
+      DB_PASSWORD: ${AKAUNTING_DB_PASSWORD:?Run just apps-init}
+      APP_KEY: ${AKAUNTING_APP_KEY:?Run just apps-init}
+    ports: ["127.0.0.1:${AKAUNTING_PORT:-8040}:80"]
+    volumes: ["../data/officehub-akaunting-frontend:/var/www/html/storage"]
+    networks: [private]
+    # Akaunting's initial wizard and image-specific setup should be completed interactively.
+
+  officehub-invoiceninja-database:
+    image: mariadb:10.11
+    profiles: [invoicing]
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ninja
+      MARIADB_USER: ninja
+      MARIADB_PASSWORD: ${NINJA_DB_PASSWORD:?Run just apps-init}
+      MARIADB_ROOT_PASSWORD: ${NINJA_ROOT_PASSWORD:?Run just apps-init}
+    volumes: ["../data/officehub-invoiceninja-database:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized"]
+      interval: 10s
+      retries: 15
+    networks: [private]
+  officehub-invoiceninja-backend:
+    image: invoiceninja/invoiceninja-debian:latest
+    profiles: [invoicing]
+    restart: unless-stopped
+    depends_on:
+      officehub-invoiceninja-database: {condition: service_healthy}
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: http://localhost:${NINJA_PORT:-8050}
+      APP_KEY: ${NINJA_APP_KEY:?Generate an Invoice Ninja APP_KEY}
+      DB_CONNECTION: mysql
+      DB_HOST: officehub-invoiceninja-database
+      DB_PORT: "3306"
+      DB_DATABASE: ninja
+      DB_USERNAME: ninja
+      DB_PASSWORD: ${NINJA_DB_PASSWORD:?Run just apps-init}
+    ports: ["127.0.0.1:${NINJA_PORT:-8050}:80"]
+    volumes:
+      - "../data/officehub-invoiceninja-backend/public:/var/www/app/public"
+      - "../data/officehub-invoiceninja-backend/storage:/var/www/app/storage"
+    networks: [private]
+    # Invoice Ninja requires an image-specific APP_KEY and may require its upstream proxy setup.
+
+  officehub-automatisch-database:
+    image: postgres:17-alpine
+    profiles: [automation-alt]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: automatisch
+      POSTGRES_USER: automatisch
+      POSTGRES_PASSWORD: ${AUTOMATISCH_DB_PASSWORD:?Run just apps-init}
+    volumes: ["../data/officehub-automatisch-database:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U automatisch -d automatisch"]
+      interval: 10s
+      retries: 10
+    networks: [private]
+  officehub-automatisch-redis:
+    image: redis:7-alpine
+    profiles: [automation-alt]
+    restart: unless-stopped
+    volumes: ["../data/officehub-automatisch-redis:/data"]
+    networks: [private]
+  officehub-automatisch-frontend:
+    image: automatischio/automatisch:latest
+    profiles: [automation-alt]
+    restart: unless-stopped
+    depends_on:
+      officehub-automatisch-database: {condition: service_healthy}
+      officehub-automatisch-redis: {condition: service_started}
+    environment: &automatisch-env
+      HOST: localhost
+      PROTOCOL: http
+      PORT: "3000"
+      DATABASE_URL: postgresql://automatisch:${AUTOMATISCH_DB_PASSWORD}@officehub-automatisch-database:5432/automatisch
+      REDIS_URL: redis://officehub-automatisch-redis:6379
+      ENCRYPTION_KEY: ${AUTOMATISCH_ENCRYPTION_KEY:?Run just apps-init}
+      WEBHOOK_SECRET_KEY: ${AUTOMATISCH_WEBHOOK_SECRET_KEY:?Run just apps-init}
+      APP_SECRET_KEY: ${AUTOMATISCH_APP_SECRET_KEY:?Run just apps-init}
+    ports: ["127.0.0.1:${AUTOMATISCH_PORT:-3060}:3000"]
+    volumes: ["../data/officehub-automatisch-frontend:/automatisch/storage"]
+    networks: [private]
+  officehub-automatisch-worker:
+    image: automatischio/automatisch:latest
+    profiles: [automation-alt]
+    restart: unless-stopped
+    command: ["worker"]
+    depends_on:
+      officehub-automatisch-frontend: {condition: service_started}
+    environment: *automatisch-env
+    volumes: ["../data/officehub-automatisch-worker:/automatisch/storage"]
+    networks: [private]

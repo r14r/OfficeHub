@@ -16,7 +16,7 @@ requirements:
   commands: [docker, just, python3]
 
 run:
-  command: just start
+  command: just docker-start
   cwd: .
 
 workflows:
@@ -36,11 +36,11 @@ tasks:
     steps:
       - id: compose-config
         name: Validate Docker Compose configuration
-        shell: just check
+        shell: just docker-check
 
   deploy:
     requires: [prepare]
     steps:
       - id: start-stack
         name: Build and start OfficeHub services
-        shell: just up
+        shell: just docker-up
