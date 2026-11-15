@@ -157,3 +157,13 @@ This command **does not start or recreate containers**. The status is a snapshot
 ## Docker image builds
 
 Use `just docker-build` to build the API and frontend images with `docker compose build --no-cache api frontend`. For faster incremental builds with the regular Docker build cache, use `just docker-build-with-cache`. Both commands build images only; they do not start or recreate containers.
+
+## Cloud-folder compatibility: optional application volumes
+
+Every remaining optional service bind mount has been replaced with a named Docker volume (24 mount entries, 22 distinct data paths). This includes Paperless `data`, `media`, `consume` and `export`, plus Qdrant, n8n, Redis, and application file storage. Shared volumes remain shared between their containers. Core Compose volumes were already Docker-managed.
+
+**Data migration is not automatic.** If `../data/officehub-*` contains important files, back them up and migrate each service's data into its new volume *before* restarting that service. The host files are not deleted. Starting a service with a fresh empty volume will make prior data unavailable to that service until it is migrated. Do not run `docker compose down -v`. For Paperless, move the existing document archive and metadata together with its database; do not rely on copying only media files. For applications with active database storage use engine-specific backup/restore rather than copying live data directories.
+
+## Fast service status
+
+`just status` now queries Docker directly once via `docker ps -a` (filtered to the `officehub` Compose project) instead of invoking Compose multiple times. A 12-second timeout prevents the command hanging indefinitely when Docker Desktop is unresponsive. Service names are parsed from the checked-in Compose files so even never-created optional services appear as `Not created`. This is a point-in-time read-only inspection. If Docker Desktop is stopped or its daemon is wedged, the command returns a diagnostic error.

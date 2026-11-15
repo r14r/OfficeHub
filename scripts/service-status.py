@@ -1,96 +1,102 @@
 #!/usr/bin/env python3
-"""Read-only status view for every OfficeHub Compose profile."""
-
+"""Read-only OfficeHub status with one Docker Engine call and a hard timeout."""
 from __future__ import annotations
 
 import json
+from pathlib import Path
+import re
 import subprocess
 import sys
 
-COMPOSE = [
-    "docker", "compose",
-    "-f", "compose.yaml",
-    "-f", "compose.apps.yaml",
-    "--profile", "*",
-]
+ROOT = Path(__file__).resolve().parent.parent
+TIMEOUT_SECONDS = 12
 
 
-def command(*args: str) -> str:
-    result = subprocess.run(
-        [*COMPOSE, *args], text=True, capture_output=True, check=False
-    )
-    if result.returncode:
-        detail = result.stderr.strip() or result.stdout.strip()
-        raise RuntimeError(detail or f"Docker Compose exited with {result.returncode}")
-    return result.stdout
+def declared_services(filename: str) -> list[str]:
+    found = []
+    active = False
+    for line in (ROOT / filename).read_text(encoding="utf-8").splitlines():
+        if line == "services:":
+            active = True
+            continue
+        if active and line and not line.startswith((" ", "#")):
+            break
+        if active:
+            match = re.match(r"^  ([a-zA-Z0-9][a-zA-Z0-9_.-]*):(?:\s|$)", line)
+            if match:
+                found.append(match.group(1))
+    return found
 
 
-def parse_ps(output: str) -> list[dict]:
-    """Support both JSON arrays and newline-delimited Compose JSON objects."""
-    data = output.strip()
-    if not data:
-        return []
+def inspect_containers() -> list[dict]:
+    args = [
+        "docker", "ps", "--all",
+        "--filter", "label=com.docker.compose.project=officehub",
+        "--format", "{{json .}}",
+    ]
     try:
-        parsed = json.loads(data)
-        return parsed if isinstance(parsed, list) else [parsed]
-    except json.JSONDecodeError:
-        return [json.loads(line) for line in data.splitlines() if line.strip()]
+        result = subprocess.run(args, capture_output=True, text=True, timeout=TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"Docker did not respond within {TIMEOUT_SECONDS}s; check Docker Desktop or 'docker info'"
+        ) from exc
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip() or "docker ps failed")
+    return [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
 
 
-def classification(item: dict | None) -> tuple[str, str, bool]:
-    if item is None:
+def state_of(container: dict | None) -> tuple[str, str, bool]:
+    if container is None:
         return "○", "Not created", False
-
-    state = str(item.get("State") or "").lower()
-    health = str(item.get("Health") or "").lower()
-    exit_code = item.get("ExitCode")
+    state = str(container.get("State") or "").lower()
+    status = str(container.get("Status") or "")
     if state == "running":
-        if health == "unhealthy":
+        if "(unhealthy)" in status.lower():
             return "✘", "Unhealthy", True
-        if health == "starting":
+        if "(health: starting)" in status.lower():
             return "◌", "Starting (healthcheck)", False
-        if health == "healthy":
+        if "(healthy)" in status.lower():
             return "✔", "Healthy", False
         return "✔", "Running", False
     if state == "exited":
-        if str(exit_code) == "0":
+        code = re.search(r"Exited \((\d+)\)", status, re.IGNORECASE)
+        if code and code.group(1) == "0":
             return "✔", "Completed", False
-        return "✘", f"Error (exit {exit_code})", True
+        return "✘", f"Error (exit {code.group(1)})" if code else "Exited", True
     if state == "dead":
         return "✘", "Error (dead)", True
-    if state in {"created", "restarting", "paused", "removing"}:
-        return "○", state.capitalize(), False
     return "○", state.capitalize() if state else "Unknown", False
 
 
 def main() -> int:
     try:
-        configured = [name.strip() for name in command("config", "--services").splitlines() if name.strip()]
-        found = parse_ps(command("ps", "-a", "--format", "json"))
-    except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        services = list(dict.fromkeys(
+            declared_services("compose.yaml") + declared_services("compose.apps.yaml")
+        ))
+        containers = inspect_containers()
+    except (OSError, ValueError, RuntimeError) as exc:
         print(f"Cannot read OfficeHub Docker status: {exc}", file=sys.stderr)
         return 2
 
     by_service: dict[str, list[dict]] = {}
-    for container in found:
-        service = str(container.get("Service") or "")
-        if service:
-            by_service.setdefault(service, []).append(container)
+    for container in containers:
+        labels = str(container.get("Labels") or "")
+        match = re.search(r"(?:^|,)com\.docker\.compose\.service=([^,]+)", labels)
+        if match and match.group(1) in services:
+            by_service.setdefault(match.group(1), []).append(container)
 
-    lines = []
+    rows = []
     failures = 0
-    for service in configured:
-        containers = by_service.get(service) or [None]
-        for container in containers:
-            icon, label, failed = classification(container)
+    for service in services:
+        for item in by_service.get(service) or [None]:
+            symbol, status, failed = state_of(item)
             failures += int(failed)
-            name = str(container.get("Name") or service) if container else service
-            lines.append((icon, f"Container {name}", label))
-
-    width = max((len(name) for _, name, _ in lines), default=0)
-    for icon, name, label in lines:
-        print(f" {icon} {name:<{width}}  {label}")
-    print(f"\n{len(configured)} configured services · {failures} failed/unhealthy")
+            name = str(item.get("Names") or service) if item else service
+            rows.append((symbol, f"Container {name}", status))
+    width = max((len(name) for _, name, _ in rows), default=0)
+    for symbol, name, status in rows:
+        print(f" {symbol} {name:<{width}}  {status}", flush=True)
+    print(f"\n{len(services)} configured services · {failures} failed/unhealthy")
     return 1 if failures else 0
 
 
