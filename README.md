@@ -75,6 +75,16 @@ update-cli run
 
 `just update-check`, `just update-plan`, `just update`, `just update-doctor` and `just update-status` wrap installed update-cli commands. **Changing to `main` only works after the feature branch has been merged.** If deploying the feature branch before merge, set `source.ref=feature/officehub-compose-starter` instead. Do not commit update-cli's local state/config or application backup directories.
 
+## Start all applications and open the dashboard
+
+```bash
+just start-all       # generate secrets, build/start every optional app, then frontend
+just start-frontend  # build/start only the OfficeHub frontend and its dependencies
+just open            # open the dashboard in your default browser
+```
+
+`just start-all` can consume substantial RAM, CPU, disk and startup time. Some optional apps still need upstream-specific first-run setup. The dashboard lists configured application URLs and per-app Overview pages; URLs are not availability checks. Nuxt receives public URLs from Compose via `NUXT_PUBLIC_*_URL`, using ports from `.env`. Gotenberg and Qdrant remain private API-only services.
+
 ## Optional application services
 
 See [docs/apps.md](docs/apps.md) for 31 optional component definitions (Paperless-ngx, Gotenberg, n8n, DocuSeal, Kimai, Authentik, Stirling PDF, Vikunja, Twenty, Actual Budget, Qdrant, Akaunting, Invoice Ninja, and Automatisch) and their separate PostgreSQL/MySQL/Redis dependencies. Each app is activated through its own Compose profile, uses `officehub-<repo>-<service>` names, and writes persistent data to `../data/officehub-<repo>-<service>/`.
@@ -100,3 +110,18 @@ API endpoints: `GET /health`, `GET /api/dashboard`, and `GET/POST /api/{clients|
 This repository is a **starter**, not a deployed production office system. **There is no application user authentication or authorization**. Do not expose it publicly or store sensitive client data until this is addressed. Add a user identity provider, per-user/tenant authorization checks, TLS, database migrations (Alembic), schema constraints and edit workflows, backups and restore drills, monitoring, invoice numbering/tax requirements, audit logs, and tests. Pin images/dependency versions and review container updates. The example secrets must be changed before launch. Existing Postgres volumes are not reconfigured automatically when changing database credentials.
 
 **Backend naming:** This uses **FastAPI** (Python API framework), not `fastai` (machine-learning library), because the office dashboard needs a web API. fastai can be introduced as an optional analytics/ML worker later.
+
+## Shared Ollama and application navigation
+
+The sidebar has three top-level groups: **Dashboard**, **Admin** (Ollama), and **Apps** (one item per configured application). Visit `/admin/ollama` for online status, installed models, and init commands. The main dashboard retains client, project, task, and invoice shortcuts.
+
+There is **exactly one Ollama server**, `ollama`, with its persisted `ollama_data` volume and internal endpoint `http://ollama:11434`. Do not add independent Ollama containers for other applications.
+
+| App | Init job | Model configuration |
+| --- | --- | --- |
+| Open WebUI | `officehub-openwebui-ollama-init` | `OPENWEBUI_OLLAMA_MODEL` (falls back to `OLLAMA_MODEL`) |
+| n8n | `officehub-n8n-ollama-init` (automation profile) | `N8N_OLLAMA_MODEL` |
+
+Both jobs wait for the same Ollama service and pull their configured model into the same store. Pulls are idempotent; if both request the same model it is shared, not duplicated. Run `just docker-model-pull` for Open WebUI or `just docker-n8n-model-pull` for n8n. In n8n, set the Ollama node credential's base URL to `http://ollama:11434`; merely downloading a model does not create n8n workflows or credentials.
+
+The other optional office applications have no demonstrated Ollama dependency, so no artificial initializer jobs have been added to them.

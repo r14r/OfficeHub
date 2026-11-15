@@ -102,7 +102,7 @@ docker-db-restore file:
 
 # Download the configured Ollama model.
 docker-model-pull: docker-check-env
-    docker compose up --force-recreate ollama-init
+    docker compose up --force-recreate officehub-openwebui-ollama-init
 
 # List models in Ollama.
 docker-models:
@@ -166,3 +166,16 @@ docker-app-logs profile:
 # Validate all optional app definitions and their secret references.
 docker-app-check: apps-init
     docker compose -f compose.yaml -f compose.apps.yaml config --quiet
+
+# Start all configured apps (all profiles), then the OfficeHub frontend.
+start-all: apps-init
+    docker compose -f compose.yaml -f compose.apps.yaml --profile '*' up -d --build --scale frontend=0
+    just start-frontend
+
+# Build and launch the frontend with its required core dependencies.
+start-frontend: docker-check-env
+    docker compose -f compose.yaml up -d --build frontend
+
+# Pull the model configured for n8n into the ONE shared Ollama instance.
+docker-n8n-model-pull: apps-init
+    docker compose -f compose.yaml -f compose.apps.yaml --profile automation up --no-deps --force-recreate officehub-n8n-ollama-init

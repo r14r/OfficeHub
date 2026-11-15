@@ -65,6 +65,26 @@ services:
       - "../data/officehub-paperless-frontend/export:/usr/src/paperless/export"
     networks: [private]
 
+
+  # App-specific one-shot model download; uses the single core Ollama instance.
+  officehub-n8n-ollama-init:
+    image: curlimages/curl:8.14.1
+    profiles: [automation]
+    restart: "no"
+    depends_on:
+      ollama: {condition: service_started}
+    environment:
+      OLLAMA_MODEL: ${N8N_OLLAMA_MODEL:-llama3.2:1b}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        until curl -fsS http://ollama:11434/api/tags >/dev/null; do sleep 3; done
+        echo "Ensuring n8n model $$OLLAMA_MODEL is available in shared Ollama"
+        curl --fail --show-error --silent --max-time 3600 \
+          http://ollama:11434/api/pull -H 'Content-Type: application/json' \
+          -d "{\"name\":\"$$OLLAMA_MODEL\",\"stream\":false}"
+    networks: [private]
+
   officehub-n8n-database:
     image: postgres:17-alpine
     profiles: [automation]
@@ -85,7 +105,9 @@ services:
     restart: unless-stopped
     depends_on:
       officehub-n8n-database: {condition: service_healthy}
+      officehub-n8n-ollama-init: {condition: service_completed_successfully}
     environment:
+      # In n8n Ollama credentials, use http://ollama:11434 (Docker network address).
       DB_TYPE: postgresdb
       DB_POSTGRESDB_HOST: officehub-n8n-database
       DB_POSTGRESDB_DATABASE: n8n
