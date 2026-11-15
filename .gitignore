@@ -9,3 +9,8 @@ __pycache__/
 *.py[cod]
 .venv/
 .DS_Store
+backups/
+.updater-cli/
+release/
+current/
+backup/

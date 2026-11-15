@@ -1,0 +1,46 @@
+# r14r/update-cli schema v2 project automation manifest.
+# Source repository and target ref are configured by update-cli init/config,
+# not in this manifest: https://r14r.github.io/update-cli/
+schemaVersion: 2
+
+project:
+  name: OfficeHub
+  type: docker-compose
+  description: Local-first freelancer dashboard and Ollama services
+
+defaults:
+  failFast: true
+  timeout: 30m
+
+requirements:
+  commands: [docker, just, python3]
+
+run:
+  command: just start
+  cwd: .
+
+workflows:
+  setup:
+    tasks: [prepare, deploy]
+  ci:
+    tasks: [validate]
+
+tasks:
+  prepare:
+    steps:
+      - id: create-env
+        name: Create .env when missing
+        shell: just init
+
+  validate:
+    steps:
+      - id: compose-config
+        name: Validate Docker Compose configuration
+        shell: just check
+
+  deploy:
+    requires: [prepare]
+    steps:
+      - id: start-stack
+        name: Build and start OfficeHub services
+        shell: just up
