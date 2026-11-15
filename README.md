@@ -131,3 +131,11 @@ The other optional office applications have no demonstrated Ollama dependency, s
 Application stdout/stderr is collected by Docker's container logging system; inspect it using `docker compose logs` or `just docker-app-logs <profile>`. It does **not** require application-specific log bind mounts. A scan of both Compose manifests found only one filesystem log mount, Stirling PDF's `/logs`. That directory is now backed by the named Docker volume `officehub_stirlingpdf_logs` rather than `../data/officehub-stirlingpdf-frontend/logs`, avoiding cloud-synced host filesystem `chown` failures.
 
 The other application data bind mounts are unchanged. Existing files in the old Stirling PDF log folder are **not automatically migrated**; copy them separately if needed. Docker-managed volumes persist across `docker compose down`, but are removed by `docker compose down -v` or an explicit volume deletion.
+
+## Stirling PDF: cloud-directory mount workaround
+
+Stirling PDF uses named Docker volumes for **all three** writable directories:
+`officehub_stirlingpdf_config:/configs`, `officehub_stirlingpdf_logs:/logs`, and `officehub_stirlingpdf_tessdata:/usr/share/tessdata`.
+This prevents macOS Docker Desktop from trying to create and chown those paths under the cloud-synced `../data` folder.
+
+**Migration warning:** existing files in `../data/officehub-stirlingpdf-frontend/config` or `tessdata` are **not automatically copied** into Docker-managed volumes. Back them up and migrate them before starting the new configuration if they hold custom settings or OCR language data. Other services' host bind mounts are unchanged; they may still encounter permissions errors on a cloud-synced filesystem. For database health failures, inspect the individual container logs rather than treating the Stirling volume change as a database fix.
