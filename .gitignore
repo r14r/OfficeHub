@@ -1,0 +1,11 @@
+.env
+!.env.example
+node_modules/
+.nuxt/
+.output/
+dist/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.venv/
+.DS_Store
