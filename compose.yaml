@@ -65,28 +65,29 @@ services:
     networks: [private]
     # CPU by default. Configure GPU access separately for your Docker host.
 
-  ollama-init:
+  officehub-openwebui-ollama-init:
     image: curlimages/curl:8.14.1
     restart: "no"
     depends_on:
       - ollama
     environment:
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+      OLLAMA_MODEL: ${OPENWEBUI_OLLAMA_MODEL:-${OLLAMA_MODEL:-llama3.2:1b}}
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
         until curl -fsS http://ollama:11434/api/tags >/dev/null; do sleep 3; done
-        echo "Pulling ${OLLAMA_MODEL} into persistent Ollama storage..."
+        echo "Pulling $$OLLAMA_MODEL into persistent Ollama storage..."
         curl --fail --show-error --silent --max-time 3600 http://ollama:11434/api/pull \
           -H 'Content-Type: application/json' \
-          -d "{\"name\":\"${OLLAMA_MODEL}\",\"stream\":false}"
+          -d "{\"name\":\"$$OLLAMA_MODEL\",\"stream\":false}"
     networks: [private]
 
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
     restart: unless-stopped
     depends_on:
-      - ollama
+      ollama: {condition: service_started}
+      officehub-openwebui-ollama-init: {condition: service_completed_successfully}
     environment:
       OLLAMA_BASE_URL: http://ollama:11434
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Set WEBUI_SECRET_KEY in .env}
