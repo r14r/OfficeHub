@@ -75,6 +75,16 @@ update-cli run
 
 `just update-check`, `just update-plan`, `just update`, `just update-doctor` and `just update-status` wrap installed update-cli commands. **Changing to `main` only works after the feature branch has been merged.** If deploying the feature branch before merge, set `source.ref=feature/officehub-compose-starter` instead. Do not commit update-cli's local state/config or application backup directories.
 
+## Start all applications and open the dashboard
+
+```bash
+just start-all       # generate secrets, build/start every optional app, then frontend
+just start-frontend  # build/start only the OfficeHub frontend and its dependencies
+just open            # open the dashboard in your default browser
+```
+
+`just start-all` can consume substantial RAM, CPU, disk and startup time. Some optional apps still need upstream-specific first-run setup. The dashboard lists configured application URLs and per-app Overview pages; URLs are not availability checks. Nuxt receives public URLs from Compose via `NUXT_PUBLIC_*_URL`, using ports from `.env`. Gotenberg and Qdrant remain private API-only services.
+
 ## Optional application services
 
 See [docs/apps.md](docs/apps.md) for 31 optional component definitions (Paperless-ngx, Gotenberg, n8n, DocuSeal, Kimai, Authentik, Stirling PDF, Vikunja, Twenty, Actual Budget, Qdrant, Akaunting, Invoice Ninja, and Automatisch) and their separate PostgreSQL/MySQL/Redis dependencies. Each app is activated through its own Compose profile, uses `officehub-<repo>-<service>` names, and writes persistent data to `../data/officehub-<repo>-<service>/`.

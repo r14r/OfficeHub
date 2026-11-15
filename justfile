@@ -166,3 +166,12 @@ docker-app-logs profile:
 # Validate all optional app definitions and their secret references.
 docker-app-check: apps-init
     docker compose -f compose.yaml -f compose.apps.yaml config --quiet
+
+# Start all configured apps (all profiles), then the OfficeHub frontend.
+start-all: apps-init
+    docker compose -f compose.yaml -f compose.apps.yaml --profile '*' up -d --build --scale frontend=0
+    just start-frontend
+
+# Build and launch the frontend with its required core dependencies.
+start-frontend: docker-check-env
+    docker compose -f compose.yaml up -d --build frontend

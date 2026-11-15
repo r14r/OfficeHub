@@ -36,6 +36,19 @@ services:
     restart: unless-stopped
     environment:
       NUXT_API_INTERNAL_URL: http://api:8000
+      NUXT_PUBLIC_OPEN_WEBUI_URL: http://localhost:${OPEN_WEBUI_PORT:-3001}
+      NUXT_PUBLIC_PAPERLESS_URL: http://localhost:${PAPERLESS_PORT:-8010}
+      NUXT_PUBLIC_N8N_URL: http://localhost:${N8N_PORT:-5678}
+      NUXT_PUBLIC_DOCUSEAL_URL: http://localhost:${DOCUSEAL_PORT:-3002}
+      NUXT_PUBLIC_KIMAI_URL: http://localhost:${KIMAI_PORT:-8001}
+      NUXT_PUBLIC_AUTHENTIK_URL: http://localhost:${AUTHENTIK_PORT:-9000}
+      NUXT_PUBLIC_STIRLING_URL: http://localhost:${STIRLING_PORT:-8088}
+      NUXT_PUBLIC_VIKUNJA_URL: http://localhost:${VIKUNJA_PORT:-3456}
+      NUXT_PUBLIC_TWENTY_URL: http://localhost:${TWENTY_PORT:-3020}
+      NUXT_PUBLIC_ACTUAL_URL: http://localhost:${ACTUAL_PORT:-5006}
+      NUXT_PUBLIC_AKAUNTING_URL: http://localhost:${AKAUNTING_PORT:-8040}
+      NUXT_PUBLIC_INVOICE_NINJA_URL: http://localhost:${NINJA_PORT:-8050}
+      NUXT_PUBLIC_AUTOMATISCH_URL: http://localhost:${AUTOMATISCH_PORT:-3060}
       HOST: 0.0.0.0
       PORT: 3000
     ports:
