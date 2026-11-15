@@ -179,3 +179,8 @@ start-frontend: docker-check-env
 # Pull the model configured for n8n into the ONE shared Ollama instance.
 docker-n8n-model-pull: apps-init
     docker compose -f compose.yaml -f compose.apps.yaml --profile automation up --no-deps --force-recreate officehub-n8n-ollama-init
+
+# Show current state and health of every Compose service (all optional profiles).
+# Read-only: does not build, create, start or stop containers.
+status:
+    @python3 scripts/service-status.py

@@ -143,3 +143,13 @@ This prevents macOS Docker Desktop from trying to create and chown those paths u
 ## Database persistence on macOS / cloud folders
 
 Optional application databases now use named Docker volumes rather than `../data` bind mounts, to avoid `chown: Permission denied` on synchronized filesystems. **Existing host database contents are not automatically migrated**; read [database volume migration notes](docs/database-volumes.md) before starting services with existing data.
+
+## Full stack status
+
+Run `just status` to inspect all core and optional-profile Compose services, including stopped or never-created containers. The output uses a concise progress-like list with ✓/✘/○ icons, service/container name, current state, and Docker health when available. One-off initialization jobs that exited successfully are shown as **Completed**; failures are marked **Error**.
+
+```bash
+just status
+```
+
+This command **does not start or recreate containers**. The status is a snapshot: historical build events like `Built` and `Recreated` cannot be recovered from `docker compose ps`. It reads Docker Compose JSON output and may return a nonzero status when a container is failed or unhealthy. Use `just docker-app-logs <profile>` for diagnostic logs.
