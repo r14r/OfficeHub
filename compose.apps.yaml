@@ -237,7 +237,7 @@ services:
     ports: ["127.0.0.1:${STIRLING_PORT:-8088}:8080"]
     volumes:
       - "../data/officehub-stirlingpdf-frontend/config:/configs"
-      - "../data/officehub-stirlingpdf-frontend/logs:/logs"
+      - "officehub_stirlingpdf_logs:/logs"
       - "../data/officehub-stirlingpdf-frontend/tessdata:/usr/share/tessdata"
     networks: [private]
 
@@ -463,3 +463,7 @@ services:
     environment: *automatisch-env
     volumes: ["../data/officehub-automatisch-worker:/automatisch/storage"]
     networks: [private]
+
+# Docker-managed log storage (no host-directory chown on cloud-synced paths).
+volumes:
+  officehub_stirlingpdf_logs:
