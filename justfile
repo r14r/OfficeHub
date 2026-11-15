@@ -51,8 +51,12 @@ docker-down:
 docker-restart: docker-check-env
     docker compose restart
 
-# Build application images.
+# Build API and frontend images without using the Docker build cache.
 docker-build: docker-check-env
+    docker compose build --no-cache api frontend
+
+# Build API and frontend images using Docker's build cache.
+docker-build-with-cache: docker-check-env
     docker compose build api frontend
 
 # Pull published service images (Ollama, PostgreSQL, Open WebUI).
