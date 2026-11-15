@@ -1,6 +1,6 @@
 # Optional self-hosted applications for OfficeHub.
 # Enable selectively: docker compose -f compose.yaml -f compose.apps.yaml --profile documents up -d
-# All persisted paths are relative to the OfficeHub repo: ../data/<service>/
+# Application file mounts remain under ../data/<service>/; database data uses Docker named volumes.
 # No ports other than localhost are exposed.
 services:
   officehub-gotenberg-api:
@@ -18,7 +18,7 @@ services:
       POSTGRES_DB: paperless
       POSTGRES_USER: paperless
       POSTGRES_PASSWORD: ${PAPERLESS_DB_PASSWORD:?Run just apps-init}
-    volumes: ["../data/officehub-paperless-database:/var/lib/postgresql/data"]
+    volumes: ["officehub_paperless_database:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U paperless -d paperless"]
       interval: 10s
@@ -93,7 +93,7 @@ services:
       POSTGRES_DB: n8n
       POSTGRES_USER: n8n
       POSTGRES_PASSWORD: ${N8N_DB_PASSWORD:?Run just apps-init}
-    volumes: ["../data/officehub-n8n-database:/var/lib/postgresql/data"]
+    volumes: ["officehub_n8n_database:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U n8n -d n8n"]
       interval: 10s
@@ -131,7 +131,7 @@ services:
       POSTGRES_DB: docuseal
       POSTGRES_USER: docuseal
       POSTGRES_PASSWORD: ${DOCUSEAL_DB_PASSWORD:?Run just apps-init}
-    volumes: ["../data/officehub-docuseal-database:/var/lib/postgresql/data"]
+    volumes: ["officehub_docuseal_database:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U docuseal -d docuseal"]
       interval: 10s
@@ -159,7 +159,7 @@ services:
       MYSQL_PASSWORD: ${KIMAI_DB_PASSWORD:?Run just apps-init}
       MYSQL_ROOT_PASSWORD: ${KIMAI_ROOT_PASSWORD:?Run just apps-init}
     command: --default-storage-engine=innodb
-    volumes: ["../data/officehub-kimai-database:/var/lib/mysql"]
+    volumes: ["officehub_kimai_database:/var/lib/mysql"]
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s
@@ -190,7 +190,7 @@ services:
       POSTGRES_DB: authentik
       POSTGRES_USER: authentik
       POSTGRES_PASSWORD: ${AUTHENTIK_DB_PASSWORD:?Run just apps-init}
-    volumes: ["../data/officehub-authentik-database:/var/lib/postgresql/data"]
+    volumes: ["officehub_authentik_database:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U authentik -d authentik"]
       interval: 10s
@@ -249,7 +249,7 @@ services:
       POSTGRES_DB: vikunja
       POSTGRES_USER: vikunja
       POSTGRES_PASSWORD: ${VIKUNJA_DB_PASSWORD:?Run just apps-init}
-    volumes: ["../data/officehub-vikunja-database:/var/lib/postgresql/data"]
+    volumes: ["officehub_vikunja_database:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vikunja -d vikunja"]
       interval: 10s
@@ -281,7 +281,7 @@ services:
       POSTGRES_DB: twenty
       POSTGRES_USER: twenty
       POSTGRES_PASSWORD: ${TWENTY_DB_PASSWORD:?Run just apps-init}
-    volumes: ["../data/officehub-twenty-database:/var/lib/postgresql/data"]
+    volumes: ["officehub_twenty_database:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U twenty -d twenty"]
       interval: 10s
@@ -350,7 +350,7 @@ services:
       MARIADB_USER: akaunting
       MARIADB_PASSWORD: ${AKAUNTING_DB_PASSWORD:?Run just apps-init}
       MARIADB_ROOT_PASSWORD: ${AKAUNTING_ROOT_PASSWORD:?Run just apps-init}
-    volumes: ["../data/officehub-akaunting-database:/var/lib/mysql"]
+    volumes: ["officehub_akaunting_database:/var/lib/mysql"]
     healthcheck:
       test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized"]
       interval: 10s
@@ -384,7 +384,7 @@ services:
       MARIADB_USER: ninja
       MARIADB_PASSWORD: ${NINJA_DB_PASSWORD:?Run just apps-init}
       MARIADB_ROOT_PASSWORD: ${NINJA_ROOT_PASSWORD:?Run just apps-init}
-    volumes: ["../data/officehub-invoiceninja-database:/var/lib/mysql"]
+    volumes: ["officehub_invoiceninja_database:/var/lib/mysql"]
     healthcheck:
       test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized"]
       interval: 10s
@@ -422,7 +422,7 @@ services:
       POSTGRES_DB: automatisch
       POSTGRES_USER: automatisch
       POSTGRES_PASSWORD: ${AUTOMATISCH_DB_PASSWORD:?Run just apps-init}
-    volumes: ["../data/officehub-automatisch-database:/var/lib/postgresql/data"]
+    volumes: ["officehub_automatisch_database:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U automatisch -d automatisch"]
       interval: 10s
@@ -465,7 +465,18 @@ services:
     networks: [private]
 
 # Docker-managed Stirling PDF storage (avoids chown failures on cloud-synced paths).
+# Database files stay in Docker-managed storage to avoid host cloud-folder chown failures.
 volumes:
+  officehub_paperless_database:
+  officehub_n8n_database:
+  officehub_docuseal_database:
+  officehub_kimai_database:
+  officehub_authentik_database:
+  officehub_vikunja_database:
+  officehub_twenty_database:
+  officehub_akaunting_database:
+  officehub_invoiceninja_database:
+  officehub_automatisch_database:
   officehub_stirlingpdf_config:
   officehub_stirlingpdf_logs:
   officehub_stirlingpdf_tessdata:

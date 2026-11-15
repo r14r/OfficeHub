@@ -139,3 +139,17 @@ Stirling PDF uses named Docker volumes for **all three** writable directories:
 This prevents macOS Docker Desktop from trying to create and chown those paths under the cloud-synced `../data` folder.
 
 **Migration warning:** existing files in `../data/officehub-stirlingpdf-frontend/config` or `tessdata` are **not automatically copied** into Docker-managed volumes. Back them up and migrate them before starting the new configuration if they hold custom settings or OCR language data. Other services' host bind mounts are unchanged; they may still encounter permissions errors on a cloud-synced filesystem. For database health failures, inspect the individual container logs rather than treating the Stirling volume change as a database fix.
+
+## Database persistence on macOS / cloud folders
+
+Optional application databases now use named Docker volumes rather than `../data` bind mounts, to avoid `chown: Permission denied` on synchronized filesystems. **Existing host database contents are not automatically migrated**; read [database volume migration notes](docs/database-volumes.md) before starting services with existing data.
+
+## Full stack status
+
+Run `just status` to inspect all core and optional-profile Compose services, including stopped or never-created containers. The output uses a concise progress-like list with ✓/✘/○ icons, service/container name, current state, and Docker health when available. One-off initialization jobs that exited successfully are shown as **Completed**; failures are marked **Error**.
+
+```bash
+just status
+```
+
+This command **does not start or recreate containers**. The status is a snapshot: historical build events like `Built` and `Recreated` cannot be recovered from `docker compose ps`. It reads Docker Compose JSON output and may return a nonzero status when a container is failed or unhealthy. Use `just docker-app-logs <profile>` for diagnostic logs.
