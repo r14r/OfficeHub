@@ -21,26 +21,19 @@ run:
 
 workflows:
   setup:
-    tasks: [prepare, deploy]
+    tasks: [bootstrap]
   ci:
     tasks: [validate]
 
 tasks:
-  prepare:
+  bootstrap:
     steps:
-      - id: create-env
-        name: Create .env when missing
-        shell: just init
+      - id: bootstrap-officehub
+        name: Initialize environment, validate Compose, build and start OfficeHub
+        shell: just bootstrap
 
   validate:
     steps:
       - id: compose-config
         name: Validate Docker Compose configuration
         shell: just docker-check
-
-  deploy:
-    requires: [prepare]
-    steps:
-      - id: start-stack
-        name: Build and start OfficeHub services
-        shell: just docker-up
