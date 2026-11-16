@@ -167,3 +167,11 @@ Every remaining optional service bind mount has been replaced with a named Docke
 ## Fast service status
 
 `just status` now queries Docker directly once via `docker ps -a` (filtered to the `officehub` Compose project) instead of invoking Compose multiple times. A 12-second timeout prevents the command hanging indefinitely when Docker Desktop is unresponsive. Service names are parsed from the checked-in Compose files so even never-created optional services appear as `Not created`. This is a point-in-time read-only inspection. If Docker Desktop is stopped or its daemon is wedged, the command returns a diagnostic error.
+
+## Review fixes: legacy volumes, Paperless I/O, and status accuracy
+
+The `just start-all` and `just docker-app-up <profile>` recipes now stop before changing to named volumes if the old host data directories contain files. Inspect with `just volume-migration-check`. Acknowledge only **after backup and migration**, using `OFFICEHUB_LEGACY_DATA_ACK=1` in your local environment or `.env`. This is a safety override, not an automatic data migration; direct `docker compose up` bypasses the guard. Detailed instructions: [Optional application volume migration](docs/application-volume-migration.md).
+
+Paperless `consume` and `export` remain host-accessible, defaulting to `$HOME/.local/share/officehub/paperless/{consume,export}` rather than a cloud-synced folder. Configure `PAPERLESS_CONSUME_DIR` and `PAPERLESS_EXPORT_DIR` to override the locations.
+
+`just status` recognizes successful completion only for the two one-shot Ollama initializer jobs. Exited or restarting long-running services are reported as inactive/failed. It respects `COMPOSE_PROJECT_NAME` (including `.env`) or an explicit `python3 scripts/service-status.py --project <name>` override.

@@ -1,6 +1,6 @@
 # Optional self-hosted applications for OfficeHub.
 # Enable selectively: docker compose -f compose.yaml -f compose.apps.yaml --profile documents up -d
-# Optional-app persistent paths are Docker named volumes, never host cloud-folder bind mounts.
+# Application state uses named volumes; Paperless import/export use local host directories.
 # No ports other than localhost are exposed.
 services:
   officehub-gotenberg-api:
@@ -61,8 +61,8 @@ services:
     volumes:
       - "officehub_paperless_frontend_data:/usr/src/paperless/data"
       - "officehub_paperless_frontend_media:/usr/src/paperless/media"
-      - "officehub_paperless_frontend_consume:/usr/src/paperless/consume"
-      - "officehub_paperless_frontend_export:/usr/src/paperless/export"
+      - "${PAPERLESS_CONSUME_DIR:-${HOME}/.local/share/officehub/paperless/consume}:/usr/src/paperless/consume"
+      - "${PAPERLESS_EXPORT_DIR:-${HOME}/.local/share/officehub/paperless/export}:/usr/src/paperless/export"
     networks: [private]
 
 
@@ -483,8 +483,6 @@ volumes:
   officehub_paperless_broker:
   officehub_paperless_frontend_data:
   officehub_paperless_frontend_media:
-  officehub_paperless_frontend_consume:
-  officehub_paperless_frontend_export:
   officehub_n8n_frontend:
   officehub_docuseal_frontend:
   officehub_kimai_frontend_data:

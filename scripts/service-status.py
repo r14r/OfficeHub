@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Read-only OfficeHub status with one Docker Engine call and a hard timeout."""
+"""Fast, read-only OfficeHub status using a single bounded Docker Engine query."""
 from __future__ import annotations
 
+import argparse
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -10,46 +12,74 @@ import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 TIMEOUT_SECONDS = 12
+ONE_SHOT_SERVICES = frozenset({
+    "officehub-openwebui-ollama-init",
+    "officehub-n8n-ollama-init",
+})
 
 
 def declared_services(filename: str) -> list[str]:
-    found = []
-    active = False
+    names = []
+    in_services = False
     for line in (ROOT / filename).read_text(encoding="utf-8").splitlines():
         if line == "services:":
-            active = True
+            in_services = True
             continue
-        if active and line and not line.startswith((" ", "#")):
+        if in_services and line and not line.startswith((" ", "#")):
             break
-        if active:
+        if in_services:
             match = re.match(r"^  ([a-zA-Z0-9][a-zA-Z0-9_.-]*):(?:\s|$)", line)
             if match:
-                found.append(match.group(1))
-    return found
+                names.append(match.group(1))
+    return names
 
 
-def inspect_containers() -> list[dict]:
+def project_name(override: str | None = None) -> str:
+    if override:
+        return override
+    if os.environ.get("COMPOSE_PROJECT_NAME"):
+        return os.environ["COMPOSE_PROJECT_NAME"]
+    env_file = ROOT / ".env"
+    if env_file.is_file():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            match = re.match(r"^\s*COMPOSE_PROJECT_NAME\s*=\s*(.*?)\s*$", line)
+            if match:
+                name = match.group(1).strip().strip("'\"")
+                if name:
+                    return name
+    for line in (ROOT / "compose.yaml").read_text(encoding="utf-8").splitlines():
+        match = re.match(r"^name:\s*(\S+)\s*$", line)
+        if match:
+            return match.group(1).strip("'\"")
+    return ROOT.name.lower()
+
+
+def inspect_containers(project: str) -> list[dict]:
     args = [
         "docker", "ps", "--all",
-        "--filter", "label=com.docker.compose.project=officehub",
+        "--filter", f"label=com.docker.compose.project={project}",
         "--format", "{{json .}}",
     ]
     try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=TIMEOUT_SECONDS)
+        result = subprocess.run(
+            args, capture_output=True, text=True,
+            timeout=TIMEOUT_SECONDS, check=False,
+        )
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(
-            f"Docker did not respond within {TIMEOUT_SECONDS}s; check Docker Desktop or 'docker info'"
+            f"Docker did not respond within {TIMEOUT_SECONDS}s; "
+            "check Docker Desktop or run 'docker info'"
         ) from exc
     if result.returncode:
         raise RuntimeError(result.stderr.strip() or "docker ps failed")
     return [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
 
 
-def state_of(container: dict | None) -> tuple[str, str, bool]:
-    if container is None:
+def state_of(item: dict | None, *, one_shot: bool = False) -> tuple[str, str, bool]:
+    if item is None:
         return "○", "Not created", False
-    state = str(container.get("State") or "").lower()
-    status = str(container.get("Status") or "")
+    state = str(item.get("State") or "").lower()
+    status = str(item.get("Status") or "")
     if state == "running":
         if "(unhealthy)" in status.lower():
             return "✘", "Unhealthy", True
@@ -60,43 +90,53 @@ def state_of(container: dict | None) -> tuple[str, str, bool]:
         return "✔", "Running", False
     if state == "exited":
         code = re.search(r"Exited \((\d+)\)", status, re.IGNORECASE)
-        if code and code.group(1) == "0":
+        exit_code = int(code.group(1)) if code else None
+        if exit_code == 0 and one_shot:
             return "✔", "Completed", False
-        return "✘", f"Error (exit {code.group(1)})" if code else "Exited", True
+        if exit_code == 0:
+            return "✘", "Stopped (exit 0)", True
+        return "✘", f"Error (exit {exit_code})" if code else "Exited", True
     if state == "dead":
         return "✘", "Error (dead)", True
-    return "○", state.capitalize() if state else "Unknown", False
+    if state == "restarting":
+        return "✘", "Restarting", True
+    if state in {"created", "paused", "removing"}:
+        return "○", state.capitalize(), True
+    return "✘", state.capitalize() if state else "Unknown", True
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--project", help="Override the Compose project name")
+    args = parser.parse_args()
     try:
-        services = list(dict.fromkeys(
+        names = list(dict.fromkeys(
             declared_services("compose.yaml") + declared_services("compose.apps.yaml")
         ))
-        containers = inspect_containers()
+        containers = inspect_containers(project_name(args.project))
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"Cannot read OfficeHub Docker status: {exc}", file=sys.stderr)
         return 2
 
-    by_service: dict[str, list[dict]] = {}
+    grouped: dict[str, list[dict]] = {}
     for container in containers:
         labels = str(container.get("Labels") or "")
         match = re.search(r"(?:^|,)com\.docker\.compose\.service=([^,]+)", labels)
-        if match and match.group(1) in services:
-            by_service.setdefault(match.group(1), []).append(container)
+        if match and match.group(1) in names:
+            grouped.setdefault(match.group(1), []).append(container)
 
     rows = []
     failures = 0
-    for service in services:
-        for item in by_service.get(service) or [None]:
-            symbol, status, failed = state_of(item)
+    for service in names:
+        for item in grouped.get(service) or [None]:
+            symbol, state, failed = state_of(item, one_shot=service in ONE_SHOT_SERVICES)
             failures += int(failed)
-            name = str(item.get("Names") or service) if item else service
-            rows.append((symbol, f"Container {name}", status))
+            container_name = str(item.get("Names") or service) if item else service
+            rows.append((symbol, f"Container {container_name}", state))
     width = max((len(name) for _, name, _ in rows), default=0)
-    for symbol, name, status in rows:
-        print(f" {symbol} {name:<{width}}  {status}", flush=True)
-    print(f"\n{len(services)} configured services · {failures} failed/unhealthy")
+    for symbol, name, state in rows:
+        print(f" {symbol} {name:<{width}}  {state}", flush=True)
+    print(f"\n{len(names)} configured services · {failures} failed/inactive")
     return 1 if failures else 0
 
 

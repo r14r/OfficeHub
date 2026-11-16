@@ -157,6 +157,7 @@ apps-init: init
 
 # Start optional app profile (and its dependencies); e.g. just docker-app-up documents.
 docker-app-up profile: apps-init
+    python3 scripts/legacy-volume-guard.py --profile {{quote(profile)}}
     docker compose -f compose.yaml -f compose.apps.yaml --profile {{quote(profile)}} up -d
 
 # Stop only services from the selected profile, preserving all data and core services.
@@ -173,6 +174,7 @@ docker-app-check: apps-init
 
 # Start all configured apps (all profiles), then the OfficeHub frontend.
 start-all: apps-init
+    python3 scripts/legacy-volume-guard.py --all
     docker compose -f compose.yaml -f compose.apps.yaml --profile '*' up -d --build --scale frontend=0
     just start-frontend
 
@@ -188,3 +190,7 @@ docker-n8n-model-pull: apps-init
 # Read-only: does not build, create, start or stop containers.
 status:
     @python3 scripts/service-status.py
+
+# Fail if legacy host data exists and migration was not acknowledged.
+volume-migration-check:
+    @python3 scripts/legacy-volume-guard.py --all
