@@ -160,7 +160,7 @@ Use `just docker-build` to build the API and frontend images with `docker compos
 
 ## Cloud-folder compatibility: optional application volumes
 
-Every remaining optional service bind mount has been replaced with a named Docker volume (24 mount entries, 22 distinct data paths). This includes Paperless `data`, `media`, `consume` and `export`, plus Qdrant, n8n, Redis, and application file storage. Shared volumes remain shared between their containers. Core Compose volumes were already Docker-managed.
+The former optional-app file mounts are now Docker-managed volumes (20 distinct data paths), except for Paperless `consume` and `export`, which use configurable local host directories. Paperless internal `data` and `media`, Qdrant, n8n, Redis, and other app state are stored in volumes. Shared volumes remain shared between related containers. Core Compose volumes were already Docker-managed.
 
 **Data migration is not automatic.** If `../data/officehub-*` contains important files, back them up and migrate each service's data into its new volume *before* restarting that service. The host files are not deleted. Starting a service with a fresh empty volume will make prior data unavailable to that service until it is migrated. Do not run `docker compose down -v`. For Paperless, move the existing document archive and metadata together with its database; do not rely on copying only media files. For applications with active database storage use engine-specific backup/restore rather than copying live data directories.
 

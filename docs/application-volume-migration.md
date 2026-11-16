@@ -58,6 +58,11 @@ with **absolute, writable, non-cloud paths** if needed. If old
 `../data/officehub-paperless-frontend/consume` or `export` contained
 files, copy those to the new folders before acknowledgement.
 
+If an earlier checkout of PR #9 already created the temporary named volumes
+`officehub_paperless_frontend_consume` or `officehub_paperless_frontend_export`,
+inspect and copy their contents into the new host directories before
+switching the mounts. The old named volumes are not deleted automatically.
+
 On macOS, avoid using synchronized iCloud/Dropbox/OneDrive paths for
 Docker database directories or mounts that require ownership changes.
 
