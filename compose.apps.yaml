@@ -1,6 +1,6 @@
 # Optional self-hosted applications for OfficeHub.
 # Enable selectively: docker compose -f compose.yaml -f compose.apps.yaml --profile documents up -d
-# Application file mounts remain under ../data/<service>/; database data uses Docker named volumes.
+# Application state uses named volumes; Paperless import/export use local host directories.
 # No ports other than localhost are exposed.
 services:
   officehub-gotenberg-api:
@@ -28,7 +28,7 @@ services:
     image: valkey/valkey:9-alpine
     profiles: [documents]
     restart: unless-stopped
-    volumes: ["../data/officehub-paperless-broker:/data"]
+    volumes: ["officehub_paperless_broker:/data"]
     networks: [private]
   officehub-paperless-tika:
     image: apache/tika:3.3.1.0
@@ -59,10 +59,10 @@ services:
       PAPERLESS_OCR_LANGUAGE: deu+eng
     ports: ["127.0.0.1:${PAPERLESS_PORT:-8010}:8000"]
     volumes:
-      - "../data/officehub-paperless-frontend/data:/usr/src/paperless/data"
-      - "../data/officehub-paperless-frontend/media:/usr/src/paperless/media"
-      - "../data/officehub-paperless-frontend/consume:/usr/src/paperless/consume"
-      - "../data/officehub-paperless-frontend/export:/usr/src/paperless/export"
+      - "officehub_paperless_frontend_data:/usr/src/paperless/data"
+      - "officehub_paperless_frontend_media:/usr/src/paperless/media"
+      - "${PAPERLESS_CONSUME_DIR:-${HOME}/.local/share/officehub/paperless/consume}:/usr/src/paperless/consume"
+      - "${PAPERLESS_EXPORT_DIR:-${HOME}/.local/share/officehub/paperless/export}:/usr/src/paperless/export"
     networks: [private]
 
 
@@ -120,7 +120,7 @@ services:
       WEBHOOK_URL: http://localhost:${N8N_PORT:-5678}/
       GENERIC_TIMEZONE: Europe/Berlin
     ports: ["127.0.0.1:${N8N_PORT:-5678}:5678"]
-    volumes: ["../data/officehub-n8n-frontend:/home/node/.n8n"]
+    volumes: ["officehub_n8n_frontend:/home/node/.n8n"]
     networks: [private]
 
   officehub-docuseal-database:
@@ -146,7 +146,7 @@ services:
     environment:
       DATABASE_URL: postgresql://docuseal:${DOCUSEAL_DB_PASSWORD}@officehub-docuseal-database:5432/docuseal
     ports: ["127.0.0.1:${DOCUSEAL_PORT:-3002}:3000"]
-    volumes: ["../data/officehub-docuseal-frontend:/data/docuseal"]
+    volumes: ["officehub_docuseal_frontend:/data/docuseal"]
     networks: [private]
 
   officehub-kimai-database:
@@ -178,8 +178,8 @@ services:
       ADMINPASS: ${KIMAI_ADMIN_PASSWORD:?Run just apps-init}
     ports: ["127.0.0.1:${KIMAI_PORT:-8001}:8001"]
     volumes:
-      - "../data/officehub-kimai-frontend/data:/opt/kimai/var/data"
-      - "../data/officehub-kimai-frontend/plugins:/opt/kimai/var/plugins"
+      - "officehub_kimai_frontend_data:/opt/kimai/var/data"
+      - "officehub_kimai_frontend_plugins:/opt/kimai/var/plugins"
     networks: [private]
 
   officehub-authentik-database:
@@ -211,7 +211,7 @@ services:
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD:?Run just apps-init}
       AUTHENTIK_POSTGRESQL__SSLMODE: disable
     ports: ["127.0.0.1:${AUTHENTIK_PORT:-9000}:9000"]
-    volumes: ["../data/officehub-authentik-frontend/media:/media"]
+    volumes: ["officehub_authentik_frontend_media:/media"]
     networks: [private]
   officehub-authentik-worker:
     image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG:-2026.8}
@@ -222,8 +222,8 @@ services:
       officehub-authentik-database: {condition: service_healthy}
     environment: *authentik-env
     volumes:
-      - "../data/officehub-authentik-frontend/media:/media"
-      - "../data/officehub-authentik-worker/templates:/templates"
+      - "officehub_authentik_frontend_media:/media"
+      - "officehub_authentik_worker_templates:/templates"
     networks: [private]
     # Intentionally does not mount /var/run/docker.sock.
 
@@ -270,7 +270,7 @@ services:
       VIKUNJA_SERVICE_SECRET: ${VIKUNJA_SECRET:?Run just apps-init}
       VIKUNJA_SERVICE_PUBLICURL: http://localhost:${VIKUNJA_PORT:-3456}/
     ports: ["127.0.0.1:${VIKUNJA_PORT:-3456}:3456"]
-    volumes: ["../data/officehub-vikunja-frontend:/app/vikunja/files"]
+    volumes: ["officehub_vikunja_frontend:/app/vikunja/files"]
     networks: [private]
 
   officehub-twenty-database:
@@ -292,7 +292,7 @@ services:
     profiles: [crm]
     restart: unless-stopped
     command: ["redis-server", "--maxmemory-policy", "noeviction"]
-    volumes: ["../data/officehub-twenty-redis:/data"]
+    volumes: ["officehub_twenty_redis:/data"]
     networks: [private]
   officehub-twenty-frontend:
     image: twentycrm/twenty:${TWENTY_TAG:-latest}
@@ -310,7 +310,7 @@ services:
       ENCRYPTION_KEY: ${TWENTY_ENCRYPTION_KEY:?Run just apps-init}
       STORAGE_TYPE: local
     ports: ["127.0.0.1:${TWENTY_PORT:-3020}:3000"]
-    volumes: ["../data/officehub-twenty-frontend:/app/packages/twenty-server/.local-storage"]
+    volumes: ["officehub_twenty_frontend:/app/packages/twenty-server/.local-storage"]
     networks: [private]
   officehub-twenty-worker:
     image: twentycrm/twenty:${TWENTY_TAG:-latest}
@@ -323,7 +323,7 @@ services:
       <<: *twenty-env
       DISABLE_DB_MIGRATIONS: "true"
       DISABLE_CRON_JOBS_REGISTRATION: "true"
-    volumes: ["../data/officehub-twenty-frontend:/app/packages/twenty-server/.local-storage"]
+    volumes: ["officehub_twenty_frontend:/app/packages/twenty-server/.local-storage"]
     networks: [private]
 
   officehub-actualbudget-frontend:
@@ -331,14 +331,14 @@ services:
     profiles: [budget]
     restart: unless-stopped
     ports: ["127.0.0.1:${ACTUAL_PORT:-5006}:5006"]
-    volumes: ["../data/officehub-actualbudget-frontend:/data"]
+    volumes: ["officehub_actualbudget_frontend:/data"]
     networks: [private]
 
   officehub-qdrant-database:
     image: qdrant/qdrant:latest
     profiles: [vector]
     restart: unless-stopped
-    volumes: ["../data/officehub-qdrant-database:/qdrant/storage"]
+    volumes: ["officehub_qdrant_database:/qdrant/storage"]
     networks: [private]
 
   officehub-akaunting-database:
@@ -371,7 +371,7 @@ services:
       DB_PASSWORD: ${AKAUNTING_DB_PASSWORD:?Run just apps-init}
       APP_KEY: ${AKAUNTING_APP_KEY:?Run just apps-init}
     ports: ["127.0.0.1:${AKAUNTING_PORT:-8040}:80"]
-    volumes: ["../data/officehub-akaunting-frontend:/var/www/html/storage"]
+    volumes: ["officehub_akaunting_frontend:/var/www/html/storage"]
     networks: [private]
     # Akaunting's initial wizard and image-specific setup should be completed interactively.
 
@@ -409,8 +409,8 @@ services:
       DB_PASSWORD: ${NINJA_DB_PASSWORD:?Run just apps-init}
     ports: ["127.0.0.1:${NINJA_PORT:-8050}:80"]
     volumes:
-      - "../data/officehub-invoiceninja-backend/public:/var/www/app/public"
-      - "../data/officehub-invoiceninja-backend/storage:/var/www/app/storage"
+      - "officehub_invoiceninja_backend_public:/var/www/app/public"
+      - "officehub_invoiceninja_backend_storage:/var/www/app/storage"
     networks: [private]
     # Invoice Ninja requires an image-specific APP_KEY and may require its upstream proxy setup.
 
@@ -432,7 +432,7 @@ services:
     image: redis:7-alpine
     profiles: [automation-alt]
     restart: unless-stopped
-    volumes: ["../data/officehub-automatisch-redis:/data"]
+    volumes: ["officehub_automatisch_redis:/data"]
     networks: [private]
   officehub-automatisch-frontend:
     image: automatischio/automatisch:latest
@@ -451,7 +451,7 @@ services:
       WEBHOOK_SECRET_KEY: ${AUTOMATISCH_WEBHOOK_SECRET_KEY:?Run just apps-init}
       APP_SECRET_KEY: ${AUTOMATISCH_APP_SECRET_KEY:?Run just apps-init}
     ports: ["127.0.0.1:${AUTOMATISCH_PORT:-3060}:3000"]
-    volumes: ["../data/officehub-automatisch-frontend:/automatisch/storage"]
+    volumes: ["officehub_automatisch_frontend:/automatisch/storage"]
     networks: [private]
   officehub-automatisch-worker:
     image: automatischio/automatisch:latest
@@ -461,7 +461,7 @@ services:
     depends_on:
       officehub-automatisch-frontend: {condition: service_started}
     environment: *automatisch-env
-    volumes: ["../data/officehub-automatisch-worker:/automatisch/storage"]
+    volumes: ["officehub_automatisch_worker:/automatisch/storage"]
     networks: [private]
 
 # Docker-managed Stirling PDF storage (avoids chown failures on cloud-synced paths).
@@ -480,3 +480,23 @@ volumes:
   officehub_stirlingpdf_config:
   officehub_stirlingpdf_logs:
   officehub_stirlingpdf_tessdata:
+  officehub_paperless_broker:
+  officehub_paperless_frontend_data:
+  officehub_paperless_frontend_media:
+  officehub_n8n_frontend:
+  officehub_docuseal_frontend:
+  officehub_kimai_frontend_data:
+  officehub_kimai_frontend_plugins:
+  officehub_authentik_frontend_media:
+  officehub_authentik_worker_templates:
+  officehub_vikunja_frontend:
+  officehub_twenty_redis:
+  officehub_twenty_frontend:
+  officehub_actualbudget_frontend:
+  officehub_qdrant_database:
+  officehub_akaunting_frontend:
+  officehub_invoiceninja_backend_public:
+  officehub_invoiceninja_backend_storage:
+  officehub_automatisch_redis:
+  officehub_automatisch_frontend:
+  officehub_automatisch_worker:

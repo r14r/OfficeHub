@@ -1,0 +1,137 @@
+{
+  "description": "Application file mounts switched in PR #9; keep previous host locations for guarded migrations.",
+  "entries": [
+    {
+      "profile": "documents",
+      "legacy": "officehub-paperless-broker",
+      "volume": "officehub_paperless_broker",
+      "target": null
+    },
+    {
+      "profile": "documents",
+      "legacy": "officehub-paperless-frontend/data",
+      "volume": "officehub_paperless_frontend_data",
+      "target": null
+    },
+    {
+      "profile": "documents",
+      "legacy": "officehub-paperless-frontend/media",
+      "volume": "officehub_paperless_frontend_media",
+      "target": null
+    },
+    {
+      "profile": "documents",
+      "legacy": "officehub-paperless-frontend/consume",
+      "volume": null,
+      "target": "PAPERLESS_CONSUME_DIR"
+    },
+    {
+      "profile": "documents",
+      "legacy": "officehub-paperless-frontend/export",
+      "volume": null,
+      "target": "PAPERLESS_EXPORT_DIR"
+    },
+    {
+      "profile": "automation",
+      "legacy": "officehub-n8n-frontend",
+      "volume": "officehub_n8n_frontend",
+      "target": null
+    },
+    {
+      "profile": "signing",
+      "legacy": "officehub-docuseal-frontend",
+      "volume": "officehub_docuseal_frontend",
+      "target": null
+    },
+    {
+      "profile": "time",
+      "legacy": "officehub-kimai-frontend/data",
+      "volume": "officehub_kimai_frontend_data",
+      "target": null
+    },
+    {
+      "profile": "time",
+      "legacy": "officehub-kimai-frontend/plugins",
+      "volume": "officehub_kimai_frontend_plugins",
+      "target": null
+    },
+    {
+      "profile": "security",
+      "legacy": "officehub-authentik-frontend/media",
+      "volume": "officehub_authentik_frontend_media",
+      "target": null
+    },
+    {
+      "profile": "security",
+      "legacy": "officehub-authentik-worker/templates",
+      "volume": "officehub_authentik_worker_templates",
+      "target": null
+    },
+    {
+      "profile": "tasks",
+      "legacy": "officehub-vikunja-frontend",
+      "volume": "officehub_vikunja_frontend",
+      "target": null
+    },
+    {
+      "profile": "crm",
+      "legacy": "officehub-twenty-redis",
+      "volume": "officehub_twenty_redis",
+      "target": null
+    },
+    {
+      "profile": "crm",
+      "legacy": "officehub-twenty-frontend",
+      "volume": "officehub_twenty_frontend",
+      "target": null
+    },
+    {
+      "profile": "budget",
+      "legacy": "officehub-actualbudget-frontend",
+      "volume": "officehub_actualbudget_frontend",
+      "target": null
+    },
+    {
+      "profile": "vector",
+      "legacy": "officehub-qdrant-database",
+      "volume": "officehub_qdrant_database",
+      "target": null
+    },
+    {
+      "profile": "accounting",
+      "legacy": "officehub-akaunting-frontend",
+      "volume": "officehub_akaunting_frontend",
+      "target": null
+    },
+    {
+      "profile": "invoicing",
+      "legacy": "officehub-invoiceninja-backend/public",
+      "volume": "officehub_invoiceninja_backend_public",
+      "target": null
+    },
+    {
+      "profile": "invoicing",
+      "legacy": "officehub-invoiceninja-backend/storage",
+      "volume": "officehub_invoiceninja_backend_storage",
+      "target": null
+    },
+    {
+      "profile": "automation-alt",
+      "legacy": "officehub-automatisch-redis",
+      "volume": "officehub_automatisch_redis",
+      "target": null
+    },
+    {
+      "profile": "automation-alt",
+      "legacy": "officehub-automatisch-frontend",
+      "volume": "officehub_automatisch_frontend",
+      "target": null
+    },
+    {
+      "profile": "automation-alt",
+      "legacy": "officehub-automatisch-worker",
+      "volume": "officehub_automatisch_worker",
+      "target": null
+    }
+  ]
+}
